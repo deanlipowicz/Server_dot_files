@@ -1,0 +1,19 @@
+filetype: stan
+
+detect:
+    filename: "\\.stan$"
+
+rules:
+    - statement: "\\b(functions|data|transformed data|parameters|transformed parameters|model|generated quantities)\\b"
+    - statement: "\\b(if|else|for|while|return|break|continue)\\b"
+    - type: "\\b(int|real|vector|row_vector|matrix|array|simplex|ordered|positive_ordered|corr_matrix|cov_matrix|cholesky_factor_corr|cholesky_factor_cov|void)\\b"
+    - special: "\\b(normal|student_t|bernoulli|binomial|poisson|gamma|beta|exponential|uniform|lognormal|multi_normal)(_lpdf|_lpmf|_lcdf|_lccdf|_rng)?\\b"
+    - constant.number: "\\b[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?\\b"
+    - comment:
+        start: "//"
+        end: "$"
+        rules: []
+    - comment:
+        start: "/\\*"
+        end: "\\*/"
+        rules: []

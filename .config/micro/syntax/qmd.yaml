@@ -1,0 +1,20 @@
+filetype: qmd
+
+detect:
+    filename: "\\.qmd$"
+
+rules:
+    - special: "^---$"
+    - special: "^```\\{.*\\}$"
+    - special: "^```$"
+    - special: "^#{1,6}.*"
+    - identifier: "^[[:space:]]*[\\*+-] |^[[:space:]]*[0-9]+\\. "
+    - type: ".*[ :]\\|[ :].*"
+    - statement: "^>.*"
+    - constant: "\\[[^]]+\\]"
+    - constant: "\\[([^][]|\\[[^]]*\\])*\\]\\([^)]+\\)"
+    - underlined: "https?://[^ )>]+"
+    - special:
+        start: "`"
+        end: "`"
+        rules: []

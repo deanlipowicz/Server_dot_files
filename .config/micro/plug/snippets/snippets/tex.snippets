@@ -1,0 +1,222 @@
+# Curated Micro-native LaTeX snippets.
+# Inspired by common UltiSnips/vim-snippets triggers, but kept simple because
+# Micro snippets do not execute UltiSnips Python or dynamic backtick code.
+
+snippet doc article
+	\documentclass{${1:article}}
+	\usepackage[utf8]{inputenc}
+	\usepackage{amsmath, amssymb}
+	\usepackage{graphicx}
+	\usepackage{hyperref}
+	
+	\title{${2:Title}}
+	\author{${3:Author}}
+	\date{\today}
+	
+	\begin{document}
+	\maketitle
+	
+	${0}
+	
+	\end{document}
+
+snippet up usepackage
+	\usepackage{${1:package}}${0}
+
+snippet sec section
+	\section{${1:Section title}}
+	${0}
+
+snippet sub subsection
+	\subsection{${1:Subsection title}}
+	${0}
+
+snippet ssub subsubsection
+	\subsubsection{${1:Subsubsection title}}
+	${0}
+
+snippet env begin
+	\begin{${1:environment}}
+		${0}
+	\end{${1:environment}}
+
+snippet beg begin
+	\begin{${1:environment}}
+		${0}
+	\end{${1:environment}}
+
+snippet itemize
+	\begin{itemize}
+		\item ${0}
+	\end{itemize}
+
+snippet enumerate enum
+	\begin{enumerate}
+		\item ${0}
+	\end{enumerate}
+
+snippet item
+	\item ${0}
+
+snippet eq equation
+	\begin{equation}
+		${0}
+	\end{equation}
+
+snippet eqn equation*
+	\begin{equation*}
+		${0}
+	\end{equation*}
+
+snippet align
+	\begin{align}
+		${0}
+	\end{align}
+
+snippet frac
+	\frac{${1:numerator}}{${2:denominator}}${0}
+
+snippet sum
+	\sum_{${1:i=1}}^{${2:n}} ${0}
+
+snippet int
+	\int_{${1:a}}^{${2:b}} ${0}\,d${3:x}
+
+snippet fig figure
+	\begin{figure}[${1:htbp}]
+		\centering
+		\includegraphics[width=${2:0.8\textwidth}]{${3:path/to/image}}
+		\caption{${4:Caption}}
+		\label{fig:${5:label}}
+	\end{figure}
+	${0}
+
+snippet table
+	\begin{table}[${1:htbp}]
+		\centering
+		\caption{${2:Caption}}
+		\label{tab:${3:label}}
+		\begin{tabular}{${4:ll}}
+			${0}
+		\end{tabular}
+	\end{table}
+
+snippet lab label
+	\label{${1:prefix}:${2:name}}${0}
+
+snippet ref
+	\ref{${1:label}}${0}
+
+snippet cite
+	\cite{${1:key}}${0}
+
+snippet href
+	\href{${1:url}}{${2:text}}${0}
+
+snippet bf bold
+	\textbf{${1:text}}${0}
+
+snippet it italic
+	\textit{${1:text}}${0}
+
+snippet em
+	\emph{${1:text}}${0}
+
+snippet math inline
+	$${1:math}$${0}
+
+# Extended math snippets (ported from Neovim luasnip)
+snippet sqrt
+	\sqrt{${1:x}}${0}
+snippet prod
+	\prod_{${1:i=1}}^{${2:n}} ${0}
+snippet lim
+	\lim_{${1:n} \to ${2:\infty}} ${0}
+snippet part
+	\frac{\partial ${1:f}}{\partial ${2:x}}${0}
+snippet bb
+	\mathbb{${1:R}}${0}
+snippet cal
+	\mathcal{${1:F}}${0}
+snippet bf
+	\mathbf{${1:x}}${0}
+snippet hat
+	\hat{${1:theta}}${0}
+snippet bar
+	\bar{${1:x}}${0}
+snippet vec
+	\vec{${1:v}}${0}
+snippet dot
+	\dot{${1:x}}${0}
+snippet ddot
+	\ddot{${1:x}}${0}
+snippet norm
+	\left\lVert ${1:x} \right\rVert${0}
+snippet abs
+	\left| ${1:x} \right|${0}
+snippet paren
+	\left( ${1:x} \right)${0}
+snippet brack
+	\left[ ${1:x} \right]${0}
+snippet set
+	\left\{ ${1:x} \right\}${0}
+snippet sub
+	_{${1:i}}${0}
+snippet sup
+	^{${1:n}}${0}
+
+# Greek letter shortcuts
+snippet ;a
+	\alpha${0}
+snippet ;b
+	\beta${0}
+snippet ;g
+	\gamma${0}
+snippet ;G
+	\Gamma${0}
+snippet ;d
+	\delta${0}
+snippet ;D
+	\Delta${0}
+snippet ;e
+	\epsilon${0}
+snippet ;z
+	\zeta${0}
+snippet ;t
+	\theta${0}
+snippet ;T
+	\Theta${0}
+snippet ;l
+	\lambda${0}
+snippet ;L
+	\Lambda${0}
+snippet ;m
+	\mu${0}
+snippet ;p
+	\pi${0}
+snippet ;P
+	\Pi${0}
+snippet ;s
+	\sigma${0}
+snippet ;S
+	\Sigma${0}
+snippet ;o
+	\omega${0}
+snippet ;O
+	\Omega${0}
+snippet ;in
+	\in${0}
+snippet ;inf
+	\infty${0}
+snippet ;to
+	\to${0}
+snippet ;le
+	\le${0}
+snippet ;ge
+	\ge${0}
+snippet ;neq
+	\neq${0}
+snippet ;approx
+	\approx${0}
+snippet ;cdot
+	\cdot${0}

@@ -1,0 +1,17 @@
+filetype: tex
+
+detect:
+    filename: "\\.(tex|ltx|sty|cls)$"
+
+rules:
+    - comment:
+        start: "(^|[^\\\\])%"
+        end: "$"
+        rules: []
+    - statement: "\\\\(begin|end|documentclass|usepackage|input|include|title|author|date|maketitle|section|subsection|subsubsection|paragraph|label|ref|pageref|cite|href|url|emph|textbf|textit|texttt|item)\\b"
+    - statement: "\\\\[A-Za-z@]+\\*?"
+    - type: "\\{[A-Za-z* -]+\\}"
+    - constant.number: "\\b[0-9]+(\\.[0-9]+)?\\b"
+    - special: "\\$[^$]*\\$"
+    - symbol: "[{}\\[\\]()]"
+    - underlined: "https?://[^ }]+"

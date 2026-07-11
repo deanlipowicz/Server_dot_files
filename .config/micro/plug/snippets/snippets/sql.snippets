@@ -1,0 +1,67 @@
+snippet tbl
+	create table ${1:table} (
+		${0:columns}
+	);
+snippet col
+	${1:name}	${2:type}	${3:default ''}	${0:not null}
+snippet ccol
+	${1:name}	varchar2(${2:size})	${3:default ''}	${0:not null}
+snippet ncol
+	${1:name}	number	${3:default 0}	${0:not null}
+snippet dcol
+	${1:name}	date	${3:default sysdate}	${0:not null}
+snippet ind
+	create index ${0:$1_$2} on ${1:table}(${2:column});
+snippet uind
+	create unique index ${1:name} on ${2:table}(${0:column});
+snippet tblcom
+	comment on table ${1:table} is '${0:comment}';
+snippet colcom
+	comment on column ${1:table}.${2:column} is '${0:comment}';
+snippet addcol
+	alter table ${1:table} add (${2:column} ${0:type});
+snippet seq
+	create sequence ${1:name} start with ${2:1} increment by ${3:1} minvalue ${0:1};
+snippet s*
+	select * from ${0:table}
+snippet cte
+	with ${1:step_name} as (
+		select
+			${2:*}
+		from ${3:source_table}
+	)
+	select *
+	from ${1:step_name}
+snippet duck
+	select
+		${1:*}
+	from ${2:table}
+	limit ${0:20}
+snippet createas
+	create or replace table ${1:table_name} as
+	select
+		${2:*}
+	from ${0:source_table}
+
+# DuckDB workflow snippets (ported from Neovim luasnip)
+snippet readparquet
+	read_parquet('${1:data/*.parquet}')${0}
+snippet readcsv
+	read_csv_auto('${1:data/file.csv}')${0}
+snippet copyparquet
+	copy (
+		${1:select * from source}
+	) to '${2:dist/data/output.parquet}' (format parquet);
+	${0}
+snippet ortable
+	create or replace table ${1:schema.table_name} as
+	${2:select * from source_table};
+	${0}
+snippet describe
+	describe ${1:table_name};${0}
+snippet summarize
+	summarize ${1:table_name};${0}
+snippet limitreview
+	select *
+	from ${1:table_name}
+	limit ${2:20};${0}

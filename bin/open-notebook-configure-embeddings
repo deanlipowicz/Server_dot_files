@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+import json
+import sys
+import urllib.error
+import urllib.request
+
+
+API = "http://127.0.0.1:5055/api"
+PROVIDER = "openai_compatible"
+MODEL_TYPE = "embedding"
+DEFAULT_MODEL_NAME = "google/embeddinggemma-300m"
+
+EMBEDDINGS = [
+    {
+        "label": "EmbeddingGemma",
+        "credential_name": "Local EmbeddingGemma",
+        "base_url": "http://embeddinggemma:80/v1",
+        "model_name": "google/embeddinggemma-300m",
+    },
+    {
+        "label": "Math Similarity",
+        "credential_name": "Local Math Similarity Embeddings",
+        "base_url": "http://embedding-math:80/v1",
+        "model_name": "math-similarity/Bert-MLM_arXiv-MP-class_zbMath",
+    },
+    {
+        "label": "CodeBERT",
+        "credential_name": "Local CodeBERT Embeddings",
+        "base_url": "http://embedding-code:8000/v1",
+        "model_name": "microsoft/codebert-base",
+    },
+]
+
+
+def request(method, path, data=None):
+    body = None
+    headers = {"Accept": "application/json"}
+    if data is not None:
+        body = json.dumps(data).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    req = urllib.request.Request(
+        f"{API}{path}", data=body, headers=headers, method=method
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            payload = response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"{method} {path} failed: HTTP {exc.code}: {detail}") from exc
+
+    if not payload:
+        return None
+    return json.loads(payload.decode("utf-8"))
+
+
+def find_credential(credentials, spec):
+    for credential in credentials:
+        if (
+            credential.get("provider") == PROVIDER
+            and credential.get("base_url") == spec["base_url"]
+        ):
+            return credential
+    for credential in credentials:
+        if (
+            credential.get("provider") == PROVIDER
+            and credential.get("name") == spec["credential_name"]
+        ):
+            return credential
+    return None
+
+
+def ensure_credential(spec):
+    credentials = request("GET", f"/credentials?provider={PROVIDER}")
+    credential = find_credential(credentials, spec)
+
+    if credential:
+        updates = {}
+        if credential.get("name") != spec["credential_name"]:
+            updates["name"] = spec["credential_name"]
+        if credential.get("base_url") != spec["base_url"]:
+            updates["base_url"] = spec["base_url"]
+        if credential.get("modalities") != [MODEL_TYPE]:
+            updates["modalities"] = [MODEL_TYPE]
+        if updates:
+            credential = request("PUT", f"/credentials/{credential['id']}", updates)
+        return credential
+
+    return request(
+        "POST",
+        "/credentials",
+        {
+            "name": spec["credential_name"],
+            "provider": PROVIDER,
+            "modalities": [MODEL_TYPE],
+            "base_url": spec["base_url"],
+        },
+    )
+
+
+def ensure_model(spec, credential_id):
+    models = request("GET", f"/models?type={MODEL_TYPE}")
+    for model in models:
+        if model.get("provider") == PROVIDER and model.get("name") == spec["model_name"]:
+            if model.get("credential") == credential_id:
+                return model
+            print(
+                f"{spec['label']} model exists but is linked to a different "
+                "credential; leaving it unchanged.",
+                file=sys.stderr,
+            )
+            return model
+
+    return request(
+        "POST",
+        "/models",
+        {
+            "name": spec["model_name"],
+            "provider": PROVIDER,
+            "type": MODEL_TYPE,
+            "credential": credential_id,
+        },
+    )
+
+
+def ensure_default_embedding(model_by_name):
+    defaults = request("GET", "/models/defaults")
+    if defaults.get("default_embedding_model"):
+        return defaults
+
+    defaults["default_embedding_model"] = model_by_name[DEFAULT_MODEL_NAME]["id"]
+    return request("PUT", "/models/defaults", defaults)
+
+
+def main():
+    model_by_name = {}
+    for spec in EMBEDDINGS:
+        credential = ensure_credential(spec)
+        model = ensure_model(spec, credential["id"])
+        model_by_name[spec["model_name"]] = model
+        print(f"{spec['label']} credential: {credential['id']}")
+        print(f"{spec['label']} model: {model['id']}")
+
+    ensure_default_embedding(model_by_name)
+    print(f"Default embedding model if previously unset: {DEFAULT_MODEL_NAME}")
+
+
+if __name__ == "__main__":
+    main()

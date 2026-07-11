@@ -1,0 +1,8 @@
+[flavor]
+dark = "catppuccin-mocha"
+
+[filetype]
+rules = [
+	# Hidden files (dotfiles) — dimmed and italic
+	{ url = ".*", fg = "#6c7086", italic = true },
+]

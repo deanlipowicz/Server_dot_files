@@ -1,0 +1,48 @@
+# Quarto snippets for Micro.
+
+snippet rchunk
+	```{r}
+	#| label: ${1:chunk-name}
+	
+	${0}
+	```
+
+snippet juliachunk
+	```{julia}
+	#| label: ${1:chunk-name}
+	
+	${0}
+	```
+
+snippet sqlchunk
+	```{sql}
+	#| label: ${1:chunk-name}
+	
+	${0}
+	```
+
+snippet pychunk
+	```{python}
+	#| label: ${1:chunk-name}
+	
+	${0}
+	```
+
+snippet callout
+	::: {.callout-${1:note}}
+	${0}
+	:::
+
+snippet fig
+	![${1:Caption}](${2:figures/name.png}){#fig-${0:name}}
+
+snippet cite
+	[@${1:key}]${0}
+
+snippet dm
+	$$
+	${0}
+	$$
+
+snippet im
+	$${1:math}$${0}

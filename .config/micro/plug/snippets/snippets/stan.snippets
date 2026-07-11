@@ -1,0 +1,55 @@
+# Stan snippets for Micro.
+
+snippet model
+	data {
+		${1}
+	}
+	parameters {
+		${2}
+	}
+	model {
+		${0}
+	}
+
+snippet gq
+	generated quantities {
+		${0}
+	}
+
+snippet normal
+	${1:y} ~ normal(${2:mu}, ${0:sigma});
+
+# Bayesian workflow snippets (ported from Neovim luasnip)
+snippet stanblocks
+	data {
+	  ${1:int<lower=1> N;}
+	}
+	
+	parameters {
+	  ${2:real alpha;}
+	}
+	
+	transformed parameters {
+	  ${3:// derived parameters}
+	}
+	
+	model {
+	  ${4:alpha ~ normal(0, 1);}
+	}
+	
+	generated quantities {
+	  ${5:// posterior predictive quantities}
+	}${0}
+snippet prior
+	// Prior: ${1:state rationale} on the domain scale.
+	${2:theta} ~ ${3:normal}(${4:0}, ${5:1});${0}
+snippet ppc
+	array[N] real y_rep;
+	for (n in 1:N) {
+	  y_rep[n] = ${1:normal_rng(mu[n], sigma)};
+	}${0}
+snippet loglik
+	vector[N] log_lik;
+	for (n in 1:N) {
+	  log_lik[n] = ${1:normal_lpdf(y[n] | mu[n], sigma)};
+	}${0}

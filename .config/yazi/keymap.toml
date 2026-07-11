@@ -1,0 +1,47 @@
+[mgr]
+prepend_keymap = [
+	# Smart enter — replaces default `l` to intelligently enter/open
+	{ on = "l", run = "plugin smart-enter", desc = "Smart enter" },
+
+	# Jump to character (vim-style)
+	{ on = "f", run = "plugin jump-to-char", desc = "Jump to character" },
+
+	# Zoom preview pane
+	{ on = "z", run = "plugin zoom", desc = "Zoom preview" },
+
+	# Toggle pane (maximize preview)
+	{ on = "T", run = "plugin toggle-pane max-preview", desc = "Maximize preview" },
+
+	# Chmod on selected files
+	{ on = [ "c", "m" ], run = "plugin chmod", desc = "Chmod on selected files" },
+	{ on = [ "c", "h" ], run = "plugin chmod", desc = "Chmod on hovered file" },
+
+	# Smart paste — paste and enter the target dir
+	{ on = "P", run = "plugin smart-paste", desc = "Smart paste" },
+
+	# Smart filter — real-time interactive filtering
+	{ on = ".", run = "plugin smart-filter", desc = "Smart filter" },
+
+	# Diff selected vs hovered file
+	{ on = [ "d", "d" ], run = "plugin diff", desc = "Diff selected vs hovered" },
+
+	# Toggle hidden files — show/hide dotfiles
+	{ on = "H", run = "plugin toggle-hidden", desc = "Toggle hidden files" },
+]
+
+# Completion component (: command line autocomplete)
+# Mimics zsh-style menu completion behavior
+[cmp]
+prepend_keymap = [
+	# Tab/Shift+Tab cycle through completions (zsh menu-complete / reverse-menu-complete)
+	{ on = "<Tab>",   run = "arrow next", desc = "Next completion item" },
+	{ on = "<S-Tab>", run = "arrow prev", desc = "Previous completion item" },
+
+	# Ctrl+G aborts completion (zsh send-break)
+	{ on = "<C-g>",   run = "close",      desc = "Cancel completion" },
+]
+
+[[manager.prepend_keymap]]
+on   = [ "v", "p" ]
+run  = "shell 'yazi-preview-serve \"$0\"'"
+desc = "Preview file on port 4321 (qmd/md/html)"

@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""Process PDFs dropped into the local OCR input folder via Ollama."""
+
+from __future__ import annotations
+
+import base64
+import errno
+import fcntl
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+
+HOME = Path.home()
+DOCUMENTS = HOME / "Documents"
+
+INPUT_DIR = Path(os.environ.get("OCR_INPUT_DIR", DOCUMENTS / "nanonets_ocr_input"))
+OUTPUT_DIR = Path(os.environ.get("OCR_OUTPUT_DIR", DOCUMENTS / "nanonets_ocr_output"))
+ARCHIVE_DIR = Path(os.environ.get("OCR_ARCHIVE_DIR", DOCUMENTS / "ocr_archive"))
+LOCK_PATH = Path(os.environ.get("OCR_LOCK_PATH", "/tmp/nanonets-ocr-drop-worker.lock"))
+
+LLAMA_SERVER_URL = os.environ.get(
+    "OLLAMA_SERVER_URL",
+    os.environ.get("LLAMA_SERVER_URL", "http://127.0.0.1:11434"),
+).rstrip("/")
+LLAMA_OCR_MODEL = os.environ.get(
+    "OLLAMA_OCR_MODEL",
+    os.environ.get("LLAMA_OCR_MODEL", "nanonets-ocr2-ocr:latest"),
+)
+LLAMA_OCR_PROMPT = os.environ.get(
+    "LLAMA_OCR_PROMPT",
+    "OCR this document page to clean markdown. Return only markdown.",
+)
+LLAMA_RENDER_DPI = int(os.environ.get("LLAMA_RENDER_DPI", "200"))
+LLAMA_MAX_PAGES = int(os.environ.get("LLAMA_MAX_PAGES", "0"))
+LLAMA_MAX_TOKENS = int(os.environ.get("LLAMA_MAX_TOKENS", "4096"))
+LLAMA_TEMPERATURE = float(os.environ.get("LLAMA_TEMPERATURE", "0"))
+LLAMA_REQUEST_TIMEOUT = int(os.environ.get("LLAMA_REQUEST_TIMEOUT", "900"))
+LLAMA_STABLE_SECONDS = float(os.environ.get("LLAMA_STABLE_SECONDS", "2"))
+LLAMA_ACTIVITY_DIR = Path(os.environ.get("LLAMA_ACTIVITY_DIR", "/tmp/llama-ocr-activity"))
+
+
+def log(message: str) -> None:
+    print(f"nanonets-ocr-drop: {message}", flush=True)
+
+
+def ensure_dirs() -> None:
+    for path in (INPUT_DIR, OUTPUT_DIR, ARCHIVE_DIR, LLAMA_ACTIVITY_DIR):
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def acquire_lock():
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    handle = LOCK_PATH.open("w")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        if exc.errno in (errno.EACCES, errno.EAGAIN):
+            log("another worker is already running")
+            raise SystemExit(0)
+        raise
+    return handle
+
+
+def pdf_files() -> list[Path]:
+    return sorted(
+        path
+        for path in INPUT_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() == ".pdf"
+    )
+
+
+def wait_until_stable(path: Path) -> bool:
+    try:
+        first = path.stat()
+    except FileNotFoundError:
+        return False
+
+    time.sleep(LLAMA_STABLE_SECONDS)
+
+    try:
+        second = path.stat()
+    except FileNotFoundError:
+        return False
+
+    return (
+        first.st_size == second.st_size
+        and int(first.st_mtime_ns) == int(second.st_mtime_ns)
+        and second.st_size > 0
+    )
+
+
+def unique_path(directory: Path, stem: str, suffix: str) -> Path:
+    candidate = directory / f"{stem}{suffix}"
+    if not candidate.exists():
+        return candidate
+
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    candidate = directory / f"{stem}-{timestamp}{suffix}"
+    if not candidate.exists():
+        return candidate
+
+    counter = 2
+    while True:
+        candidate = directory / f"{stem}-{timestamp}-{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def start_server() -> None:
+    subprocess.run(
+        ["systemctl", "--user", "start", "ollama.service"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=20,
+    )
+
+
+def http_json(method: str, path: str, payload: dict | None = None, timeout: int = 30) -> dict:
+    data = None
+    headers = {"Accept": "application/json"}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = urllib.request.Request(
+        f"{LLAMA_SERVER_URL}{path}",
+        data=data,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Ollama HTTP {exc.code}: {details}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Ollama request failed: {exc}") from exc
+
+    if not body.strip():
+        return {}
+    return json.loads(body)
+
+
+def wait_for_server() -> None:
+    deadline = time.time() + 60
+    last_error = ""
+    while time.time() < deadline:
+        try:
+            response = http_json("GET", "/api/tags", timeout=5)
+            if isinstance(response.get("models"), list):
+                return
+            last_error = f"unexpected /api/tags response: {response}"
+        except Exception as exc:
+            last_error = str(exc)
+        time.sleep(1)
+    raise RuntimeError(f"Ollama server did not become ready: {last_error}")
+
+
+def touch_activity(model: str) -> None:
+    safe = model.replace("/", "_").replace(":", "_")
+    activity = LLAMA_ACTIVITY_DIR / f"{safe}.last"
+    activity.parent.mkdir(parents=True, exist_ok=True)
+    activity.write_text(str(time.time()), encoding="utf-8")
+
+
+def render_pdf(pdf_path: Path, tmpdir: Path) -> list[Path]:
+    prefix = tmpdir / "page"
+    command = ["pdftoppm", "-png", "-r", str(LLAMA_RENDER_DPI)]
+    if LLAMA_MAX_PAGES > 0:
+        command.extend(["-f", "1", "-l", str(LLAMA_MAX_PAGES)])
+    command.extend([str(pdf_path), str(prefix)])
+
+    subprocess.run(
+        command,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=LLAMA_REQUEST_TIMEOUT,
+    )
+    pages = sorted(tmpdir.glob("page-*.png"))
+    if not pages:
+        raise RuntimeError("PDF render produced no page images")
+    return pages
+
+
+def image_data_url(image_path: Path) -> str:
+    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def ocr_page(page_path: Path) -> str:
+    touch_activity(LLAMA_OCR_MODEL)
+    payload = {
+        "model": LLAMA_OCR_MODEL,
+        "temperature": LLAMA_TEMPERATURE,
+        "max_tokens": LLAMA_MAX_TOKENS,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": LLAMA_OCR_PROMPT},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_data_url(page_path)},
+                    },
+                ],
+            }
+        ],
+    }
+    response = http_json(
+        "POST",
+        "/v1/chat/completions",
+        payload=payload,
+        timeout=LLAMA_REQUEST_TIMEOUT,
+    )
+    touch_activity(LLAMA_OCR_MODEL)
+    try:
+        content = response["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(f"unexpected Ollama OCR response: {response}") from exc
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("Ollama OCR returned empty content")
+    return content.strip()
+
+
+def pdf_to_markdown(pdf_path: Path) -> str:
+    start_server()
+    wait_for_server()
+
+    lines = [f"# {pdf_path.stem}", ""]
+    with tempfile.TemporaryDirectory(prefix="llama-ocr-pages-") as tmp:
+        pages = render_pdf(pdf_path, Path(tmp))
+        for index, page_path in enumerate(pages, start=1):
+            if len(pages) > 1:
+                lines.extend([f"## Page {index}", ""])
+            lines.extend([ocr_page(page_path), ""])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def process_pdf(path: Path) -> bool:
+    if not wait_until_stable(path):
+        log(f"skipping unstable or missing file: {path.name}")
+        return False
+
+    log(f"processing {path.name}")
+    markdown = pdf_to_markdown(path)
+
+    output_path = unique_path(OUTPUT_DIR, path.stem, ".md")
+    temp_output = output_path.with_suffix(output_path.suffix + ".tmp")
+    temp_output.write_text(markdown, encoding="utf-8")
+    temp_output.replace(output_path)
+
+    archive_path = unique_path(ARCHIVE_DIR, path.stem, path.suffix)
+    shutil.move(str(path), archive_path)
+    log(f"wrote {output_path.name}; archived {archive_path.name}")
+    return True
+
+
+def main() -> int:
+    ensure_dirs()
+
+    with acquire_lock():
+        files = pdf_files()
+        if not files:
+            log("no PDFs queued")
+            return 0
+
+        successes = 0
+        failures = 0
+        for path in files:
+            try:
+                successes += int(process_pdf(path))
+            except Exception as exc:
+                failures += 1
+                log(f"ERROR processing {path.name}: {exc}")
+
+        log(f"finished: {successes} succeeded, {failures} failed")
+        return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

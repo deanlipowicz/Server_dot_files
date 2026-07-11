@@ -1,0 +1,23 @@
+{
+    "F7": "command:lsp start",
+    "F8": "command:lsp format",
+    "F9": "command:lsp diagnostic-info",
+    "Alt-h": "command:lsp hover",
+    "Alt-d": "command:lsp goto-definition",
+    "Alt-i": "command:lsp goto-implementation",
+    "Alt-t": "command:lsp goto-typedefinition",
+    "Alt-r": "command:lsp find-references",
+    "Alt-s": "command:lsp document-symbols",
+    "Alt-n": "command:lsp rename",
+    "Alt-a": "command:lsp code-action",
+    "Alt-e": "command:lsp extract-method",
+    "Alt-o": "command:fzf",
+    "F4": "command:snippetinsert",
+    "F5": "command:snippetnext",
+    "F6": "command:snippetaccept",
+    "Alt-x": "command:snippetcancel",
+    "F10": "command:fexec /home/workstation/terminal-applications/scripts/micro-lint-current.sh {f}",
+    "F11": "command:fexec make",
+    "Alt-g": "command:fexec rg --line-number --column --no-heading {w} .",
+    "Alt-j": "command:fjump"
+}

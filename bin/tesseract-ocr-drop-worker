@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""Process PDFs dropped into the local Tesseract OCR input folder."""
+
+from __future__ import annotations
+
+import errno
+import fcntl
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import time
+
+
+HOME = Path.home()
+DOCUMENTS = HOME / "Documents"
+
+INPUT_DIR = Path(os.environ.get("OCR_INPUT_DIR", DOCUMENTS / "tesseract_ocr_input"))
+OUTPUT_DIR = Path(os.environ.get("OCR_OUTPUT_DIR", DOCUMENTS / "tesseract_ocr_output"))
+ARCHIVE_DIR = Path(os.environ.get("OCR_ARCHIVE_DIR", DOCUMENTS / "ocr_archive"))
+LOCK_PATH = Path(os.environ.get("OCR_LOCK_PATH", "/tmp/tesseract-ocr-drop-worker.lock"))
+
+TESSERACT_LANG = os.environ.get("TESSERACT_LANG", "eng")
+TESSERACT_RENDER_DPI = int(os.environ.get("TESSERACT_RENDER_DPI", "300"))
+TESSERACT_MAX_PAGES = int(os.environ.get("TESSERACT_MAX_PAGES", "0"))
+TESSERACT_STABLE_SECONDS = float(os.environ.get("TESSERACT_STABLE_SECONDS", "2"))
+TESSERACT_TIMEOUT = int(os.environ.get("TESSERACT_TIMEOUT", "600"))
+
+
+def log(message: str) -> None:
+    print(f"tesseract-ocr-drop: {message}", flush=True)
+
+
+def ensure_dirs() -> None:
+    for path in (INPUT_DIR, OUTPUT_DIR, ARCHIVE_DIR):
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def acquire_lock():
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    handle = LOCK_PATH.open("w")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        if exc.errno in (errno.EACCES, errno.EAGAIN):
+            log("another worker is already running")
+            raise SystemExit(0)
+        raise
+    return handle
+
+
+def pdf_files() -> list[Path]:
+    return sorted(
+        path
+        for path in INPUT_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() == ".pdf"
+    )
+
+
+def wait_until_stable(path: Path) -> bool:
+    try:
+        first = path.stat()
+    except FileNotFoundError:
+        return False
+
+    time.sleep(TESSERACT_STABLE_SECONDS)
+
+    try:
+        second = path.stat()
+    except FileNotFoundError:
+        return False
+
+    return (
+        first.st_size == second.st_size
+        and int(first.st_mtime_ns) == int(second.st_mtime_ns)
+        and second.st_size > 0
+    )
+
+
+def unique_path(directory: Path, stem: str, suffix: str) -> Path:
+    candidate = directory / f"{stem}{suffix}"
+    if not candidate.exists():
+        return candidate
+
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    candidate = directory / f"{stem}-{timestamp}{suffix}"
+    if not candidate.exists():
+        return candidate
+
+    counter = 2
+    while True:
+        candidate = directory / f"{stem}-{timestamp}-{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def render_pdf(pdf_path: Path, tmpdir: Path) -> list[Path]:
+    prefix = tmpdir / "page"
+    command = ["pdftoppm", "-png", "-r", str(TESSERACT_RENDER_DPI)]
+    if TESSERACT_MAX_PAGES > 0:
+        command.extend(["-f", "1", "-l", str(TESSERACT_MAX_PAGES)])
+    command.extend([str(pdf_path), str(prefix)])
+
+    subprocess.run(
+        command,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=TESSERACT_TIMEOUT,
+    )
+    pages = sorted(tmpdir.glob("page-*.png"))
+    if not pages:
+        raise RuntimeError("PDF render produced no page images")
+    return pages
+
+
+def ocr_page(page_path: Path) -> str:
+    command = ["tesseract", str(page_path), "stdout", "-l", TESSERACT_LANG]
+    result = subprocess.run(
+        command,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=TESSERACT_TIMEOUT,
+    )
+    return result.stdout.strip()
+
+
+def pdf_to_markdown(pdf_path: Path) -> str:
+    lines = [f"# {pdf_path.stem}", ""]
+    with tempfile.TemporaryDirectory(prefix="tesseract-ocr-pages-") as tmp:
+        pages = render_pdf(pdf_path, Path(tmp))
+        for index, page_path in enumerate(pages, start=1):
+            if len(pages) > 1:
+                lines.extend([f"## Page {index}", ""])
+            page_text = ocr_page(page_path)
+            if page_text:
+                lines.extend([page_text, ""])
+            else:
+                lines.extend(["[No text recognized]", ""])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def process_pdf(path: Path) -> bool:
+    if not wait_until_stable(path):
+        log(f"skipping unstable or missing file: {path.name}")
+        return False
+
+    log(f"processing {path.name}")
+    markdown = pdf_to_markdown(path)
+
+    output_path = unique_path(OUTPUT_DIR, path.stem, ".md")
+    temp_output = output_path.with_suffix(output_path.suffix + ".tmp")
+    temp_output.write_text(markdown, encoding="utf-8")
+    temp_output.replace(output_path)
+
+    archive_path = unique_path(ARCHIVE_DIR, path.stem, path.suffix)
+    shutil.move(str(path), archive_path)
+    log(f"wrote {output_path.name}; archived {archive_path.name}")
+    return True
+
+
+def main() -> int:
+    ensure_dirs()
+
+    with acquire_lock():
+        files = pdf_files()
+        if not files:
+            log("no PDFs queued")
+            return 0
+
+        successes = 0
+        failures = 0
+        for path in files:
+            try:
+                successes += int(process_pdf(path))
+            except Exception as exc:
+                failures += 1
+                log(f"ERROR processing {path.name}: {exc}")
+
+        log(f"finished: {successes} succeeded, {failures} failed")
+        return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+PATH="$HOME/bin:$PATH"
+
+service_dir="${OPEN_NOTEBOOK_HOME:-$HOME/services/open-notebook}"
+compose_file="$service_dir/docker-compose.yml"
+local_url="http://127.0.0.1:8502"
+local_api_url="http://127.0.0.1:5055"
+local_tts_url="http://127.0.0.1:8880"
+local_embeddinggemma_url="http://127.0.0.1:8081"
+local_embedding_math_url="http://127.0.0.1:8082"
+local_embedding_code_url="http://127.0.0.1:8083"
+compose_cmd=()
+
+detect_compose() {
+  if docker compose version >/dev/null 2>&1; then
+    compose_cmd=(docker compose)
+  elif command -v docker-compose >/dev/null 2>&1; then
+    compose_cmd=(docker-compose)
+  else
+    printf 'Missing Docker Compose. Install the Docker Compose v2 plugin or docker-compose.\n' >&2
+    exit 1
+  fi
+}
+
+tailscale_url() {
+  local dns_name
+  dns_name="$(tailscale status --json 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -n 1)"
+  if [ -n "$dns_name" ]; then
+    printf 'https://%s/\n' "${dns_name%.}"
+  else
+    printf 'https://<this-machine>.<tailnet>.ts.net/\n'
+  fi
+}
+
+tailscale_api_url() {
+  local ui_url
+  ui_url="$(tailscale_url)"
+  printf '%s:5055/\n' "${ui_url%/}"
+}
+
+if [ ! -f "$compose_file" ]; then
+  printf 'Compose file not found: %s\n' "$compose_file" >&2
+  exit 1
+fi
+
+printf 'Containers:\n'
+detect_compose
+"${compose_cmd[@]}" -f "$compose_file" ps
+printf '\nLocal: %s\n' "$local_url"
+printf 'Local API: %s\n' "$local_api_url"
+printf 'Local Kokoro TTS: %s\n' "$local_tts_url"
+printf 'Local EmbeddingGemma: %s\n' "$local_embeddinggemma_url"
+printf 'Local math embeddings: %s\n' "$local_embedding_math_url"
+printf 'Local CodeBERT embeddings: %s\n' "$local_embedding_code_url"
+printf 'Open Notebook TTS base URL: http://kokoro:8880/v1\n'
+printf 'Kokoro voices: af_bella, af_sky, af_bella+af_sky\n'
+printf 'Open Notebook embedding base URLs: http://embeddinggemma:80/v1, http://embedding-math:80/v1, http://embedding-code:8000/v1\n'
+printf 'Embedding models: google/embeddinggemma-300m, math-similarity/Bert-MLM_arXiv-MP-class_zbMath, microsoft/codebert-base\n'
+printf 'Tailscale: %s\n' "$(tailscale_url)"
+printf 'Tailscale API: %s\n' "$(tailscale_api_url)"
+printf '\nTailscale Serve:\n'
+tailscale serve status || true

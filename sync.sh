@@ -23,18 +23,23 @@ echo "  • .p10k.zsh";     cp ~/.p10k.zsh    "$REPO_ROOT/.p10k.zsh"
 
 echo "  • bin/";          mkdir -p "$REPO_ROOT/bin" && cp -a ~/bin/. "$REPO_ROOT/bin/" 2>/dev/null || true
 
+# ── Scrub secrets from synced files ──
+# Replace known API keys with placeholders so they never get pushed to GitHub
+sed -i 's/export DEEPSEEK_API_KEY="[^"]*"/export DEEPSEEK_API_KEY="{{DEEPSEEK_API_KEY}}"/' "$REPO_ROOT/.zshrc" 2>/dev/null || true
+
 mkdir -p "$REPO_ROOT/.ssh"
 echo "  • .ssh/config";   cp ~/.ssh/config  "$REPO_ROOT/.ssh/config"
 
 # ── .config directories ──
-echo "  • Neovim";        rm -rf "$REPO_ROOT/.config/nvim" && cp -a ~/.config/nvim "$REPO_ROOT/.config/nvim"
+mkdir -p "$REPO_ROOT/.config"
+echo "  • Neovim";        rm -rf "$REPO_ROOT/.config/nvim" && cp -a ~/.config/nvim "$REPO_ROOT/.config/nvim" && rm -rf "$REPO_ROOT/.config/nvim/.git"
 echo "  • Yazi";          mkdir -p "$REPO_ROOT/.config/yazi" && cp -a ~/.config/yazi/. "$REPO_ROOT/.config/yazi/" 2>/dev/null || true
 echo "  • Ghostty";       mkdir -p "$REPO_ROOT/.config/ghostty" && cp ~/.config/ghostty/config "$REPO_ROOT/.config/ghostty/config" 2>/dev/null || true
 echo "  • Bat";           mkdir -p "$REPO_ROOT/.config/bat" && cp ~/.config/bat/config "$REPO_ROOT/.config/bat/config" 2>/dev/null || true
 echo "  • Bat themes";    mkdir -p "$REPO_ROOT/.config/bat/themes" && cp -a ~/.config/bat/themes/. "$REPO_ROOT/.config/bat/themes/" 2>/dev/null || true
 echo "  • Btop";          mkdir -p "$REPO_ROOT/.config/btop" && cp -a ~/.config/btop/. "$REPO_ROOT/.config/btop/" 2>/dev/null || true
 echo "  • Fastfetch";     mkdir -p "$REPO_ROOT/.config/fastfetch" && cp -a ~/.config/fastfetch/. "$REPO_ROOT/.config/fastfetch/" 2>/dev/null || true
-echo "  • Micro";         mkdir -p "$REPO_ROOT/.config/micro" && cp -a ~/.config/micro/. "$REPO_ROOT/.config/micro/" 2>/dev/null || true
+echo "  • Micro";         mkdir -p "$REPO_ROOT/.config/micro" && cp ~/.config/micro/settings.json "$REPO_ROOT/.config/micro/settings.json" 2>/dev/null || true; cp ~/.config/micro/bindings.json "$REPO_ROOT/.config/micro/bindings.json" 2>/dev/null || true; cp -a ~/.config/micro/colorschemes "$REPO_ROOT/.config/micro/" 2>/dev/null || true; cp -a ~/.config/micro/syntax "$REPO_ROOT/.config/micro/" 2>/dev/null || true
 echo "  • Harlequin";     mkdir -p "$REPO_ROOT/.config/harlequin" && cp ~/.config/harlequin/config.toml "$REPO_ROOT/.config/harlequin/config.toml" 2>/dev/null || true
 echo "  • OpenCode";      mkdir -p "$REPO_ROOT/.config/opencode" && cp -a ~/.config/opencode/. "$REPO_ROOT/.config/opencode/" 2>/dev/null || true
 echo "  • Atuin";         mkdir -p "$REPO_ROOT/.config/atuin" && cp -a ~/.config/atuin/. "$REPO_ROOT/.config/atuin/" 2>/dev/null || true
