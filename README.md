@@ -212,11 +212,6 @@ files or used by tools that are.
 | rollback-bun-migration.sh | Undo bun migration |
 | nanonets-ocr-drop-worker | OCR worker (systemd service) |
 | tesseract-ocr-drop-worker | Tesseract OCR worker |
-| open-notebook-start | Start Jupyter notebook server |
-| open-notebook-stop | Stop Jupyter notebook |
-| open-notebook-status | Check notebook status |
-| open-notebook-idle-watch | Auto-stop idle notebook sessions |
-| open-notebook-configure-* | Configure notebook kernels |
 
 ### Ops & Orchestration
 

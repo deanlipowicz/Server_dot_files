@@ -1,20 +1,61 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
+  "model": "deepseek/deepseek-v4-pro",
+  "small_model": "deepseek/deepseek-v4-flash",
   "shell": "/usr/bin/zsh",
   "instructions": [
     "/home/workstation/.config/opencode/token-discipline.md",
     "/home/workstation/.config/opencode/stop-slop.md",
     "/home/workstation/.config/opencode/shell-policy.md",
-    "/home/workstation/.config/opencode/rust-policy.md"
+    "/home/workstation/.config/opencode/sysadmin-policy.md"
   ],
   "plugin": [
     "superpowers@git+https://github.com/obra/superpowers.git#v6.0.3"
   ],
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "headers": { "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}" },
+      "timeout": 5000
+    },
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app",
+      "enabled": true,
+      "timeout": 5000
+    },
+    "tavily": {
+      "type": "local",
+      "command": ["npx", "-y", "tavily-mcp@latest"],
+      "enabled": true,
+      "env": { "TAVILY_API_KEY": "{env:TAVILY_API_KEY}" },
+      "timeout": 5000
+    },
+    "podman": {
+      "type": "local",
+      "command": ["npx", "-y", "podman-mcp-server@latest"],
+      "enabled": true,
+      "timeout": 15000
+    },
+    "system-index": {
+      "type": "local",
+      "command": ["uv", "run", "--directory",
+        "/home/workstation/.config/opencode/skills/system-index", "server.py"],
+      "enabled": true,
+      "timeout": 15000
+    }
+  },
   "references": {
     "terminal-apps": {
       "path": "/home/workstation/terminal-applications",
       "description": "Documented terminal applications, shell configuration, and workflows — eza, bat, fd, ripgrep, lazygit, tmux, zoxide, neovim, micro, duckdb, jq, yq, etc. Use for tool usage patterns and aliases."
+    },
+    "ops-agent-docs": {
+      "path": "/home/workstation/ops-agent/docs",
+      "description": "Server baseline snapshot and operational runbooks: mcp, rocm-diagnostics, source-build, pi-harness, uv-python-tools, neovim, token-efficiency. Use for host state and procedures."
     }
   },
   "lsp": {
@@ -117,6 +158,10 @@
     "todowrite": "allow",
     "webfetch": "ask",
     "websearch": "ask",
+    "context7_*": "ask",
+    "gh_grep_*": "ask",
+    "tavily_*": "ask",
+    "podman_*": "ask",
     "external_directory": "ask",
     "doom_loop": "ask",
     "edit": "ask",
@@ -140,50 +185,41 @@
       "mode": "primary",
       "description": "Default Superpowers planning agent with bounded inspection, token discipline, and direct prose.",
       "temperature": 0.1,
-      "maxSteps": 10,
-      "prompt": "Use the Superpowers workflow as the default planning behavior. Follow using-superpowers, brainstorming, writing-plans, executing-plans, and related Superpowers skills when applicable. User instructions and project instructions remain highest priority. Preserve token discipline: inspect narrowly, prefer rg, sed -n, tail -n, git diff, and focused excerpts, avoid whole-file or whole-log reads, cite paths and line numbers, and keep responses compact unless the user asks for detail. Write user-facing prose in English by default; internal reasoning may use any language, and quoted source text, code, identifiers, citations, mathematical notation, user-provided non-English text, or an explicit user request may use another language. For user-facing prose, apply stop-slop defaults: start with the point, cut filler and formulaic phrasing, prefer active voice and specific claims, avoid em dashes, and preserve precise technical caveats when needed.",
-      "permission": {
-        "read": "allow",
-        "glob": "allow",
-        "grep": "allow",
-        "list": "allow",
-        "lsp": "allow",
-        "question": "allow",
-        "todowrite": "allow",
-        "webfetch": "ask",
-        "websearch": "ask",
-        "external_directory": "ask",
-        "doom_loop": "ask",
-        "edit": "ask",
-        "bash": {
-          "rg *": "allow",
-          "sed -n *": "allow",
-          "tail -n *": "allow",
-          "git diff*": "allow",
-          "git status*": "allow",
-          "git show*": "allow",
-          "find *": "ask",
-          "cat *": "ask",
-          "journalctl *": "ask",
-          "curl *": "ask",
-          "wget *": "ask",
-          "*": "ask"
-        }
-      }
+      "maxSteps": 40,
+      "prompt": "Use the Superpowers workflow as the default planning behavior. Follow using-superpowers, brainstorming, writing-plans, executing-plans, and related Superpowers skills when applicable. User instructions and project instructions remain highest priority. Preserve token discipline: inspect narrowly, prefer rg, sed -n, tail -n, git diff, and focused excerpts, avoid whole-file or whole-log reads, cite paths and line numbers, and keep responses compact unless the user asks for detail. Write user-facing prose in English by default; internal reasoning may use any language, and quoted source text, code, identifiers, citations, mathematical notation, user-provided non-English text, or an explicit user request may use another language. For user-facing prose, apply stop-slop defaults: start with the point, cut filler and formulaic phrasing, prefer active voice and specific claims, avoid em dashes, and preserve precise technical caveats when needed.\n\nEffort scaling: simple lookup → answer directly or 1 subagent (3-10 tool calls); comparison/moderate research → 2-4 subagents; subagents return condensed findings ≤~2k tokens; large artifacts go to disk under .artifacts/ with paths passed back; never dispatch a subagent for work a single grep or read can answer."
+    },
+    "superpowers-build": {
+      "mode": "primary",
+      "description": "Superpowers execution agent: implements approved plans with TDD, verification gates, and token discipline.",
+      "temperature": 0.1,
+      "maxSteps": 60,
+      "prompt": "Execute approved plans using the Superpowers workflow: executing-plans, test-driven-development, systematic-debugging, and verification-before-completion skills when applicable. Never claim success without running verification commands. On failures, inspect the first real error before anything else. Preserve token discipline: narrow inspection, diffs over full files, condensed summaries to .artifacts/ for large outputs. Apply stop-slop prose defaults for user-facing text. Mutating commands and edits require approval; propose them explicitly with rationale."
+    },
+    "log-diagnostician": {
+      "mode": "subagent",
+      "description": "Isolated-context diagnosis of large logs, build failures, dependency breaks, and ROCm/GPU faults. Returns condensed findings, no edits.",
+      "temperature": 0.1,
+      "maxSteps": 20,
+      "prompt": "Diagnose failures from logs, journals, and build output. Locate the first real error; distinguish root cause from cascade. For apt/dpkg/linker/runtime issues follow the dependency-debugging conventions; for GPU issues load the rocm-diagnostics skill. Return: root cause, evidence (file:line or log excerpt ≤10 lines), recommended fix, confidence. Write anything longer to .artifacts/ and reference the path.",
+      "permission": { "edit": "deny", "bash": "ask" }
     },
     "docs-scout": {
       "mode": "subagent",
       "description": "Find and summarize official documentation with compact citations and no workspace edits.",
+      "model": "deepseek/deepseek-v4-flash",
       "temperature": 0.1,
-      "maxSteps": 8,
-      "prompt": "Use official documentation where possible. Return compact findings with links and only the details needed for the current decision. Do not edit files.",
+      "maxSteps": 15,
+      "prompt": "Use official documentation where possible. Return compact findings (≤400 words) with URL + section citations and only the details needed for the current decision. Do not edit files.",
       "permission": {
         "read": "allow",
         "glob": "allow",
         "grep": "allow",
         "list": "allow",
-        "webfetch": "ask",
-        "websearch": "ask",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "context7_*": "allow",
+        "gh_grep_*": "allow",
+        "tavily_*": "allow",
         "external_directory": "ask",
         "edit": "deny",
         "bash": "ask"

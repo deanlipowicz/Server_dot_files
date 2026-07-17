@@ -58,6 +58,7 @@ export FZF_DEFAULT_OPTS="--color=bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38b
 export HIP_VISIBLE_DEVICES="0"
 export HSA_OVERRIDE_GFX_VERSION="11.0.0"
 export DEEPSEEK_API_KEY="{{DEEPSEEK_API_KEY}}"
+export TAVILY_API_KEY="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"
 export HIP_FORCE_DEV_KERNARG="1"
 
 # -------- Options --------
@@ -90,7 +91,7 @@ zstyle ':completion:*' keep-prefix true
 zstyle ':completion:*' recent-dirs-insert both
 
 # -------- Apt: auto-sudo, and update upgrades everything --------
-# `apt update`      → apt + cargo + atuin + rustup + uv + npm + gh
+# `apt update`      → apt + cargo + atuin + rustup + uv + bun + gh
 #                       + R libs + nvim plugins + yazi plugins + oh-my-zsh
 #                       + zsh plugins + p10k + fwupd
 # `apt install foo` → sudo apt install foo
@@ -129,11 +130,14 @@ apt() {
       uv tool upgrade --all 2>/dev/null || uv tool upgrade --all
     fi
 
-    # ── npm global packages ──
-    if command -v npm &>/dev/null; then
+    # ── bun global packages ──
+    if command -v bun &>/dev/null; then
       echo ""
-      echo "── Updating npm global packages ──"
-      npm update -g 2>/dev/null
+      echo "── Updating bun global packages ──"
+      bun pm ls -g 2>/dev/null | rg -o '^\s*[├└]──\s+(.+)@\d' -r '$1' | while read -r pkg; do
+        echo "  updating $pkg..."
+        bun add -g "$pkg@latest" 2>/dev/null
+      done
     fi
 
     # ── GitHub CLI extensions ──
@@ -334,3 +338,7 @@ alias node='bun run'
 alias npx='bunx'
 # === BUN MIGRATION END ===
 export PATH="$HOME/opt/quarto/bin:$PATH"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

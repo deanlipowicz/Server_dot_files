@@ -1,0 +1,11 @@
+[project]
+name = "system-index"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.0.0",
+    "duckdb>=1.0.0",
+]
+
+# Flat-layout script project — no build system needed.
+# Dependencies are installed via `uv pip install` into the venv.

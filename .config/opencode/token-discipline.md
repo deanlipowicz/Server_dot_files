@@ -3,6 +3,9 @@
 Use compact context by default.
 
 - Inspect narrowly before reading or changing files.
+- For system configs, packages, and logs, prefer the system-index MCP tools
+  (`config_search`, `package_search`, `log_search`, `proc_read`, etc.) over
+  raw file reads — they enforce output caps and return only matching content.
 - Prefer `rg`, `sed -n`, `tail -n`, `git diff`, focused path lists, and version lines over whole-file or whole-log dumps.
 - Avoid reading large data files or generated artifacts into the conversation.
 - Store derived summaries for large data or logs under `.artifacts/` when a summary is needed.

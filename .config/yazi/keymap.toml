@@ -41,7 +41,3 @@ prepend_keymap = [
 	{ on = "<C-g>",   run = "close",      desc = "Cancel completion" },
 ]
 
-[[manager.prepend_keymap]]
-on   = [ "v", "p" ]
-run  = "shell 'yazi-preview-serve \"$0\"'"
-desc = "Preview file on port 4321 (qmd/md/html)"
