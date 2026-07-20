@@ -134,6 +134,11 @@ map("n", "<leader>rj", function()
   end
 end, { desc = "Jump to file:line under cursor" })
 
+-- Diagnostic navigation
+map("n", "[d", function() vim.diagnostic.goto_prev({ float = false }) end, { desc = "Prev diagnostic" })
+map("n", "]d", function() vim.diagnostic.goto_next({ float = false }) end, { desc = "Next diagnostic" })
+map("n", "<leader>ld", function() vim.diagnostic.open_float({ source = true }) end, { desc = "Diagnostic float" })
+
 -- ---------------------------------------------------------------------------
 -- 6. Inline statistics helpers
 -- ---------------------------------------------------------------------------
@@ -240,6 +245,9 @@ require("lazy").setup({
     "saghen/blink.cmp",
     event = { "InsertEnter", "CmdlineEnter" },
     version = "*",
+    dependencies = {
+      "Kaiser-Yang/blink-cmp-dictionary",
+    },
     opts = {
       keymap = {
         preset = "default",
@@ -248,11 +256,29 @@ require("lazy").setup({
       appearance = { nerd_font_variant = "mono" },
       completion = {
         ghost_text = { enabled = true },
-        menu = { auto_show = true },
         trigger = { prefetch_on_insert = true },
+        menu = {
+          auto_show = true,
+          border = "rounded",
+          max_height = 10,
+          scrolloff = 2,
+          scrollbar = true,
+          draw = {
+            columns = { { "kind_icon" }, { "label", "label_description", gap = 1 } },
+            snippet_indicator = "~",
+          },
+        },
+        documentation = {
+          auto_show = true,
+          auto_show_delay_ms = 500,
+        },
+      },
+      signature = {
+        enabled = true,
+        window = { border = "rounded" },
       },
       sources = {
-        default = { "lsp", "path", "snippets", "buffer", "minuet" },
+        default = { "lsp", "minuet", "path", "snippets", "buffer" },
         providers = {
           snippets = {
             name = "snippets",
@@ -263,7 +289,17 @@ require("lazy").setup({
             module = "minuet.blink",
             async = true,
             timeout_ms = 3000,
-            score_offset = 50,
+            score_offset = 1,
+          },
+          dictionary = {
+            module = "blink-cmp-dictionary",
+            name = "Dict",
+            min_keyword_length = 2,
+            opts = {
+              dictionary_files = {
+                vim.fn.expand("~/.config/nvim/tidywordlist/functions.dict"),
+              },
+            },
           },
           latex = {
             name = "latex",
@@ -272,11 +308,11 @@ require("lazy").setup({
           },
         },
         per_filetype = {
-          r      = { "lsp", "snippets", "path", "buffer", "minuet" },
-          rmd    = { "lsp", "snippets", "path", "buffer", "minuet" },
-          quarto = { "lsp", "snippets", "latex", "path", "buffer", "minuet" },
-          stan   = { "lsp", "snippets", "path", "buffer", "minuet" },
-          tex    = { "lsp", "snippets", "path", "buffer", "minuet" },
+          r      = { "lsp", "minuet", "dictionary", "snippets", "path", "buffer" },
+          rmd    = { "lsp", "minuet", "dictionary", "snippets", "path", "buffer" },
+          quarto = { "lsp", "minuet", "dictionary", "snippets", "latex", "path", "buffer" },
+          stan   = { "lsp", "minuet", "snippets", "path", "buffer" },
+          tex    = { "lsp", "minuet", "snippets", "path", "buffer" },
         },
       },
       cmdline = {
@@ -429,7 +465,7 @@ require("lazy").setup({
       local capabilities = require("blink.cmp").get_lsp_capabilities()
       local lsp_dir = vim.fn.stdpath("data") .. "/lazy/nvim-lspconfig/lsp/"
 
-      local servers = { "r_language_server", "clangd", "ts_ls", "jsonls", "sqls", "stan_ls" }
+      local servers = { "r_language_server", "marksman", "clangd", "ts_ls", "jsonls", "sqls", "stan_ls" }
       for _, name in ipairs(servers) do
         local ok, default = pcall(dofile, lsp_dir .. name .. ".lua")
         if not ok then
@@ -459,6 +495,9 @@ require("lazy").setup({
           if name == "stan_ls" then
             default.cmd = { "bun", vim.fn.expand("~/.bun/bin/stan-language-server"), "--stdio" }
           end
+          if name == "marksman" then
+            default.filetypes = { "markdown", "quarto", "rmd" }
+          end
           vim.lsp.config[name] = default
           vim.lsp.enable(name)
         end
@@ -477,6 +516,21 @@ require("lazy").setup({
           map({ "n", "x" }, "<leader>la", vim.lsp.buf.code_action, { buffer = buf, desc = "LSP: code action" })
           if client.server_capabilities.inlayHintProvider then
             vim.lsp.inlay_hint.enable(true, { bufnr = buf })
+          end
+          -- LSP restart
+          map("n", "<leader>lR", function()
+            pcall(vim.lsp.restart, { bufnr = buf })
+          end, { buffer = buf, desc = "LSP: restart" })
+          -- Document highlight (highlight references under cursor)
+          if client.server_capabilities.documentHighlightProvider then
+            vim.api.nvim_create_autocmd("CursorHold", {
+              buffer = buf,
+              callback = vim.lsp.buf.document_highlight,
+            })
+            vim.api.nvim_create_autocmd("CursorMoved", {
+              buffer = buf,
+              callback = vim.lsp.buf.clear_references,
+            })
           end
         end,
       })
@@ -654,6 +708,41 @@ require("lazy").setup({
         qflist = { n = "<C-q>" },
       },
     },
+  },
+
+  --------------------------------------------------
+  -- Fuzzy finder (telescope.nvim)
+  --------------------------------------------------
+  {
+    "nvim-telescope/telescope.nvim",
+    tag = "v0.2.2",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      {
+        "nvim-telescope/telescope-fzf-native.nvim",
+        build = "make",
+        cond = function() return vim.fn.executable("make") == 1 end,
+      },
+    },
+    keys = {
+      { "<leader>ff", function() require("telescope.builtin").find_files() end, desc = "Find files" },
+      { "<leader>fg", function() require("telescope.builtin").live_grep() end, desc = "Live grep" },
+      { "<leader>fb", function() require("telescope.builtin").buffers() end, desc = "Buffers" },
+      { "<leader>fs", function() require("telescope.builtin").lsp_document_symbols() end, desc = "LSP symbols" },
+      { "<leader>fS", function() require("telescope.builtin").lsp_workspace_symbols() end, desc = "LSP workspace symbols" },
+      { "<leader>fr", function() require("telescope.builtin").resume() end, desc = "Resume telescope" },
+    },
+    config = function()
+      require("telescope").setup({
+        defaults = {
+          file_ignore_patterns = { "^.git/", "node_modules", "__pycache__", ".venv", ".drake" },
+        },
+        pickers = {
+          find_files = { hidden = true, no_ignore = false },
+        },
+      })
+      pcall(function() require("telescope").load_extension("fzf") end)
+    end,
   },
 
   --------------------------------------------------

@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "snapshot": false,
   "share": "disabled",
   "model": "deepseek/deepseek-v4-pro",
   "small_model": "deepseek/deepseek-v4-flash",
@@ -37,7 +38,7 @@
     "podman": {
       "type": "local",
       "command": ["npx", "-y", "podman-mcp-server@latest"],
-      "enabled": true,
+      "enabled": false,
       "timeout": 15000
     },
     "system-index": {
@@ -108,7 +109,7 @@
   },
   "compaction": {
     "auto": true,
-    "prune": true,
+    "prune": false,
     "tail_turns": 4,
     "preserve_recent_tokens": 12000,
     "reserved": 4000
