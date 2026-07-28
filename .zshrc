@@ -245,6 +245,38 @@ alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo
 # Custom
 alias ocr='systemctl --user start nanonets-ocr-drop.service'
 
+# Live-preview .md/.html/.qmd in browser
+alias open_md='yazi-preview-serve'
+alias open_html='yazi-preview-serve'
+alias open_qmd='yazi-preview-serve'
+
+# PDF OCR — defaults output dir to same directory as the input PDF
+ocr_marker() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: ocr_marker <file.pdf> [extra marker args...]"
+    return 1
+  fi
+  local pdf="$1"; shift
+  # If user passed no --output_dir flag, inject the default
+  if ! [[ "$*" == *"--output_dir"* ]]; then
+    set -- "--output_dir" "$(dirname "$pdf")" "$@"
+  fi
+  HIP_VISIBLE_DEVICES=0 marker_single_gpu "$pdf" "$@"
+}
+
+ocr_docling() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: ocr_docling <file.pdf> [extra docling args...]"
+    return 1
+  fi
+  local pdf="$1"; shift
+  # If user passed no --output flag, inject the default
+  if ! [[ "$*" == *"--output"* ]]; then
+    set -- "--output" "$(dirname "$pdf")" "$@"
+  fi
+  HIP_VISIBLE_DEVICES=0 docling_single_gpu convert --to md "$@" "$pdf"
+}
+
 # Suffix aliases — open files by typing their name
 alias -s {md,txt,qmd,R,py,lua,json,toml,yaml,yml}=$EDITOR
 

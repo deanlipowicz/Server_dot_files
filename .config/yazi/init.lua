@@ -5,7 +5,7 @@ require("full-border"):setup()
 require("git"):setup()
 
 -- Smart enter: enter directories, open files, run directory-specific openers
-require("smart-enter"):setup({})
+require("smart-enter"):setup({ open_multi = true })
 
 -- Jump-to-char: vim-style f/t keys for quick navigation
 -- (auto-activated when bound in keymap.toml)
