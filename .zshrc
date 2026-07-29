@@ -264,6 +264,33 @@ ocr_marker() {
   HIP_VISIBLE_DEVICES=0 marker_single_gpu "$pdf" "$@"
 }
 
+# PDF OCR batch — loop over all PDFs in a directory
+ocr_marker_batch() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: ocr_marker_batch <folder> [extra marker args...]"
+    return 1
+  fi
+  local folder="${1%/}"; shift
+  if [[ ! -d "$folder" ]]; then
+    echo "Error: $folder is not a directory"
+    return 1
+  fi
+  local outdir="$folder"
+  # If user passed --output_dir, use it; otherwise default to folder
+  if [[ "$*" == *"--output_dir"* ]]; then
+    outdir="$(echo "$@" | sed -n 's/.*--output_dir \([^ ]*\).*/\1/p')"
+  fi
+  mkdir -p "$outdir"
+  local count=0
+  for f in "$folder"/*.pdf; do
+    [[ -f "$f" ]] || continue
+    ((count++))
+    echo "[$count] Processing: $f"
+    HIP_VISIBLE_DEVICES=0 marker_single_gpu "$f" --output_dir "$outdir" "$@"
+  done
+  echo "Done. Converted $count PDFs → $outdir"
+}
+
 ocr_docling() {
   if [[ -z "$1" ]]; then
     echo "Usage: ocr_docling <file.pdf> [extra docling args...]"
